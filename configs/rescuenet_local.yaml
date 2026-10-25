@@ -1,0 +1,129 @@
+# Building damage assessment from UAV imagery, RescueNet image-classification release.
+#
+# Each image is a whole drone frame of a neighbourhood after Hurricane Michael, labelled by the
+# overall damage severity: Superficial_Damage, Medium_Damage, Major_Damage. The classes differ by
+# degree on similar scenes, so each gets its own prompt template describing that severity. The
+# reference image carries more weight than in the sample config, and the caption instruction is
+# tuned to aerial views.
+#
+# Experiment: train a classifier on synthetic images only, validate and test on the real val and
+# test splits. Only the train split goes in as ground_truth here. It is the pool of captions and
+# reference images; captions.jsonl in the output folder lists exactly which frames were used.
+#
+# Real train counts: Superficial 1111, Medium 1525, Major 959. The synthetic set is an even split
+# regardless; 300 per class is a first experiment, scale with -n.
+#
+#   python scripts/prepare_rescuenet.py data/RescueNet-ImageClassification/RescueNet-classification-train.csv <frames> D:/datasets/rescuenet_train
+#   imageforge ingest --config configs/rescuenet_local.yaml
+#   imageforge run --config configs/rescuenet_local.yaml -n 30    # quick check, 10 per class
+#   imageforge run --config configs/rescuenet_local.yaml          # the full 900
+
+ground_truth: D:/datasets/rescuenet_train   # the train split only; val and test stay untouched
+output: ../runs/rescuenet_train
+# One night on the 3070 Ti is about 1200 images at 36 s each. The nearest-class gate below keeps
+# roughly 45% of Major, 55% of Medium and 90% of Superficial (measured on a 48-image batch), so the
+# counts are skewed to come out near 230 kept per class.
+total_images: 1200
+seed: 0
+per_class:
+  Major_Damage: 530
+  Medium_Damage: 410
+  Superficial_Damage: 260
+
+caption:
+  model: qwen2vl
+  quantization: nf4
+  max_images_per_class: null  # caption every frame; about 36 frames/min
+  max_new_tokens: 160
+  # Do not mention the hurricane or ask for a severity verdict: the model parrots it back and
+  # the per-class template already states the severity. Ask only for what is visible.
+  instruction: >-
+    Describe this aerial drone photograph in three short sentences for an image generation
+    model. First the layout: houses, roads, vegetation, water, how densely built. Second the
+    condition of each visible roof and structure and how much debris lies around, stated as
+    plain observations. Third the viewing angle, altitude and lighting. Do not interpret the
+    cause, do not rate the overall damage, and do not guess at anything you cannot see.
+
+# Widen the prompt pool: a text model reads samples of the real captions per class and writes
+# new descriptions that plausibly belong to the same set. Prompts then draw from both.
+synth:
+  enabled: true
+  model_id: Qwen/Qwen2.5-3B-Instruct
+  per_class: 300
+  examples_per_call: 8
+  outputs_per_call: 10
+  temperature: 0.9
+  max_new_tokens: 1400
+  # The default instruction let a 3B model drift into generic disaster text (fires, villages,
+  # appliance dumps) and write a fifth of the length of the real captions. Pin both down.
+  instruction: >-
+    Here are {k} descriptions of real aerial drone photographs, all from the same town on the
+    same day and all from the category '{class_name}':
+
+    {examples}
+
+    Write {n} descriptions of other photographs taken on the same flight over the same town.
+    Each must match the examples in length and level of detail, around 80 words, covering the
+    layout of houses, roads, vegetation and water, the condition of roofs and structures and the
+    debris present, and the viewing angle, altitude and lighting. Vary those details freely but
+    stay inside what the examples show: the same kind of coastal suburb, the same kind of damage
+    for this category, no new events, no fires, no floods unless the examples have them, no
+    interpretation. Output a numbered list with one description per line and nothing else.
+
+prompt:
+  source: mixed            # real | synthetic | mixed
+  template: "An aerial drone photograph of a neighbourhood after a hurricane, {class_name}. {caption} {style}"
+  class_templates:
+    Superficial_Damage: >-
+      An aerial drone photograph after a hurricane showing only superficial damage. {caption}
+      Any buildings present are structurally intact, with at most a torn roof section or a tarp;
+      the damage is to the landscape: snapped or stripped pines, wrack lines and debris on
+      beaches and shorelines, sand pushed over roads and yards, downed trees and scattered
+      boards. Many such frames show no buildings at all, only beach, water, sand, forest or
+      open ground.
+      {style}
+    Medium_Damage: >-
+      An aerial drone photograph of a residential neighbourhood after a hurricane with medium
+      damage: many roofs partly torn open or stripped to the decking, blue tarps, broken fences,
+      downed trees and piles of timber and household debris along the streets and in yards,
+      most walls still standing, some lots cleared to bare ground, flood-stained soil.
+      {caption} {style}
+    Major_Damage: >-
+      An aerial drone photograph of a residential neighbourhood after a hurricane with major
+      damage: houses flattened or reduced to foundations and splintered timber, roofs gone,
+      debris fields covering yards and roads, snapped trees, standing water in places.
+      {caption} {style}
+  # Steer away from the polished stock-photo look the model defaults to.
+  styles:
+    - "Frame from unedited drone footage, flat natural light, no depth of field."
+    - "Raw aerial survey image, slight sensor noise, overcast light, everything in focus."
+    - "Unretouched drone photo from a higher altitude, harsh midday sun, hard shadows."
+    - "Plain aerial survey frame, muted colours, even lighting, no vignette."
+
+backend:
+  name: flux
+  model_id: black-forest-labs/FLUX.1-dev
+  redux_model_id: black-forest-labs/FLUX.1-Redux-dev
+  use_reference: true
+  reference_pairing: random   # caption from one real frame, look from another of the same class
+  reference_strength: 0.5
+  width: 512          # generate at 512, export at 256: better than generating at 256
+  height: 512
+  steps: 16
+  guidance: 3.0        # lower than default; high guidance oversaturates and over-sharpens
+  dtype: bf16
+  transformer_gguf: https://huggingface.co/city96/FLUX.1-dev-gguf/blob/main/flux1-dev-Q4_K_S.gguf
+  quantization: nf4
+  offload: group
+  batch_size: 1
+
+# Severity gate. The model tends to render scenes tidier than their class; a synthetic image whose
+# CLIP embedding sits nearer another class's real centroid than its own is dropped. On a 48-image
+# batch this rejected 9 of 16 Major, 7 of 16 Medium and 2 of 16 Superficial, and the rejects were
+# the under-damaged ones. Rejected images stay under images/ with the reason in filtered.jsonl.
+filter:
+  export_size: 256     # classifier input size; None keeps the generated size
+  export_format: jpg
+  enabled: true
+  min_similarity: 0.0  # nearest-class check only; no absolute threshold
+  require_nearest_class: true

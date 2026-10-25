@@ -1,0 +1,37 @@
+# Settings that fit a single 8 GB GPU such as an RTX 3070 Ti. Slow, but it runs.
+# Needs: pip install -r requirements.txt
+#
+# Disk: the GGUF transformer is about 7 GB instead of 24 GB. The T5 encoder (9.5 GB), CLIP,
+# VAE and Redux still come from the Hugging Face repos, roughly 12 GB more.
+
+ground_truth: ../data/real
+output: ../runs/local
+total_images: 20
+seed: 0
+
+caption:
+  model: qwen2vl
+  quantization: nf4
+  max_images_per_class: 50
+
+prompt:
+  template: "A photo of {class_name}. {caption}"
+
+backend:
+  name: flux
+  model_id: black-forest-labs/FLUX.1-dev
+  use_reference: true
+  reference_strength: 0.35
+  width: 768
+  height: 768
+  steps: 20
+  guidance: 3.5
+  dtype: bf16
+  transformer_gguf: https://huggingface.co/city96/FLUX.1-dev-gguf/blob/main/flux1-dev-Q4_K_S.gguf
+  quantization: nf4      # applies to the T5 text encoder here, since the transformer is GGUF
+  offload: group
+  batch_size: 1
+
+filter:
+  enabled: true
+  min_similarity: 0.55

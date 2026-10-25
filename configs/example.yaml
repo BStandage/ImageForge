@@ -1,0 +1,54 @@
+# Copy this file, point ground_truth at a folder with one subfolder per class, and run:
+#   imageforge run --config configs/my_run.yaml
+# Relative paths resolve against this file's folder.
+
+ground_truth: ../data/real
+output: ../runs/example
+total_images: 200        # split evenly across classes
+seed: 0
+per_class: {}            # e.g. {rust: 80} fixes one class; the others share the rest
+
+caption:
+  model: qwen2vl         # qwen2vl | florence2
+  max_images_per_class: null   # null captions every real image
+  quantization: none     # nf4 to fit the captioner on a small GPU
+
+prompt:
+  # {caption} is the vision model's description of a real image from the class.
+  # {class_name} is the folder name with underscores turned into spaces.
+  # {style} is drawn at random from `styles` for each image.
+  template: "A photo of {class_name}. {caption} {style}"
+  class_templates: {}
+  styles:
+    - ""
+    - "Slightly different angle."
+    - "Different time of day."
+  negative: null         # Flux ignores this. SDXL uses it.
+
+backend:
+  name: flux             # flux | sdxl
+  model_id: black-forest-labs/FLUX.1-dev
+  redux_model_id: black-forest-labs/FLUX.1-Redux-dev
+  use_reference: true    # condition on a real image of the class
+  reference_pairing: same  # same: the captioned image itself | random: another image of the class, more variety
+  reference_strength: 0.35   # 0 = text only, 1 = reference dominates
+  width: 1024
+  height: 1024
+  steps: 28
+  guidance: 3.5
+  dtype: bf16
+  transformer_gguf: null # pre-quantized GGUF transformer path or URL; see local_8gb.yaml
+  quantization: none     # none | nf4 | int8   (GGUF transformer + nf4 + offload: group fits an 8 GB card)
+  offload: none          # none | model | group | sequential   (group for 8 GB cards)
+  batch_size: 1
+
+filter:
+  enabled: true
+  model_id: openai/clip-vit-base-patch32
+  min_similarity: 0.55
+  require_nearest_class: true
+
+remote:
+  host: null             # e.g. user@gpu-host ; used by `imageforge remote run`
+  workdir: ~/imageforge
+  python: python3

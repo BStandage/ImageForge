@@ -1,0 +1,38 @@
+# Full-precision run on a remote 48 GB+ GPU host, driven from this machine over SSH.
+#   imageforge remote setup --config configs/remote_example.yaml      # once
+#   imageforge remote run   --config configs/remote_example.yaml -n 500
+
+ground_truth: ../data/real
+output: ../runs/remote
+total_images: 500
+seed: 0
+
+caption:
+  model: qwen2vl
+  model_id: Qwen/Qwen2.5-VL-7B-Instruct
+
+prompt:
+  template: "A photo of {class_name}. {caption}"
+
+backend:
+  name: flux
+  model_id: black-forest-labs/FLUX.1-dev
+  use_reference: true
+  reference_strength: 0.35
+  width: 1024
+  height: 1024
+  steps: 28
+  guidance: 3.5
+  dtype: bf16
+  quantization: none
+  offload: none
+  batch_size: 2
+
+filter:
+  enabled: true
+  min_similarity: 0.55
+
+remote:
+  host: user@gpu-host          # any SSH target; see also rescuenet_rented.yaml
+  workdir: ~/imageforge
+  python: python3

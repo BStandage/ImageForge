@@ -1,0 +1,108 @@
+# RescueNet production run on a rented 48 GB card (L40S / A6000 / A100). Full precision, no
+# offload, batched. Driven from this machine over SSH:
+#
+#   python scripts/downscale_pool.py D:/datasets/rescuenet_train D:/datasets/rescuenet_train_1024
+#   imageforge remote setup --config configs/rescuenet_rented.yaml        # once per pod
+#   imageforge remote run   --config configs/rescuenet_rented.yaml -n 100  # first hour: check quality
+#   imageforge remote run   --config configs/rescuenet_rented.yaml --no-sync   # then the full count
+#
+# Everything the pod needs comes from this file; nothing else of yours goes onto it except the
+# public RescueNet frames and the Hugging Face token (revoke it afterwards).
+
+ground_truth: D:/datasets/rescuenet_train_1024
+output: ../runs/rescuenet_rented
+total_images: 6500
+seed: 0
+per_class:
+  Major_Damage: 2845
+  Medium_Damage: 2275
+  Superficial_Damage: 1380
+
+caption:
+  model: qwen2vl
+  model_id: Qwen/Qwen2.5-VL-7B-Instruct   # the bigger captioner fits here
+  batch_size: 16
+  quantization: none
+  max_images_per_class: null
+
+synth:
+  enabled: true
+  model_id: Qwen/Qwen2.5-7B-Instruct
+  per_class: 600
+  examples_per_call: 8
+  outputs_per_call: 10
+  temperature: 0.9
+  max_new_tokens: 1400
+  instruction: >-
+    Here are {k} descriptions of real aerial drone photographs, all from the same town on the
+    same day and all from the category '{class_name}':
+
+    {examples}
+
+    Write {n} descriptions of other photographs taken on the same flight over the same town.
+    Each must match the examples in length and level of detail, around 80 words, covering the
+    layout of houses, roads, vegetation and water, the condition of roofs and structures and the
+    debris present, and the viewing angle, altitude and lighting. Vary those details freely but
+    stay inside what the examples show: the same kind of coastal suburb, the same kind of damage
+    for this category, no new events, no fires, no floods unless the examples have them, no
+    interpretation. Output a numbered list with one description per line and nothing else.
+
+prompt:
+  source: mixed
+  template: "An aerial drone photograph of a neighbourhood after a hurricane, {class_name}. {caption} {style}"
+  class_templates:
+    Superficial_Damage: >-
+      An aerial drone photograph after a hurricane showing only superficial damage. {caption}
+      Any buildings present are structurally intact, with at most a torn roof section or a tarp;
+      the damage is to the landscape: snapped or stripped pines, wrack lines and debris on
+      beaches and shorelines, sand pushed over roads and yards, downed trees and scattered
+      boards. Many such frames show no buildings at all, only beach, water, sand, forest or
+      open ground.
+      {style}
+    Medium_Damage: >-
+      An aerial drone photograph of a residential neighbourhood after a hurricane with medium
+      damage: many roofs partly torn open or stripped to the decking, blue tarps, broken fences,
+      downed trees and piles of timber and household debris along the streets and in yards,
+      most walls still standing, some lots cleared to bare ground, flood-stained soil.
+      {caption} {style}
+    Major_Damage: >-
+      An aerial drone photograph of a residential neighbourhood after a hurricane with major
+      damage: houses flattened or reduced to foundations and splintered timber, roofs gone,
+      debris fields covering yards and roads, snapped trees, standing water in places.
+      {caption} {style}
+  styles:
+    - "Frame from unedited drone footage, flat natural light, no depth of field."
+    - "Raw aerial survey image, slight sensor noise, overcast light, everything in focus."
+    - "Unretouched drone photo from a higher altitude, harsh midday sun, hard shadows."
+    - "Plain aerial survey frame, muted colours, even lighting, no vignette."
+
+backend:
+  name: flux
+  model_id: black-forest-labs/FLUX.1-dev
+  redux_model_id: black-forest-labs/FLUX.1-Redux-dev
+  use_reference: true
+  reference_pairing: random
+  reference_strength: 0.5
+  width: 512
+  height: 512
+  steps: 16
+  guidance: 3.0
+  dtype: bf16
+  transformer_gguf: null
+  quantization: none
+  offload: none
+  batch_size: 4
+
+filter:
+  export_size: 256
+  export_format: jpg
+  enabled: true
+  min_similarity: 0.0
+  require_nearest_class: true
+  nearest_class_margin: 0.0
+
+remote:
+  host: root@PASTE_POD_IP
+  port: 22
+  workdir: /workspace/imageforge
+  python: python3
