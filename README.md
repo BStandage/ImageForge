@@ -1,4 +1,9 @@
-# ImageForge
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/image_forge_logo_dark.png">
+    <img src="assets/image_forge_logo.png" alt="ImageForge" width="420">
+  </picture>
+</p>
 
 Forge class-balanced synthetic training images from a small set of real ones, with local diffusion models, and measure how close the result sits to the real distribution.
 

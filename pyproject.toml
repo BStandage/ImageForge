@@ -3,6 +3,7 @@ name = "imageforge"
 version = "0.1.0"
 description = "Generate class-balanced synthetic training images from a real image set with local diffusion models."
 readme = "README.md"
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
     "click>=8.0",
