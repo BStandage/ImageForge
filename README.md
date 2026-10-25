@@ -154,3 +154,9 @@ pytest
 ## What it is for
 
 The point is the small-data case: a team with forty photos of the thing they care about, a rare defect, a rare damage state, a rare finding, and no practical way to collect four thousand. The pipeline turns a small labelled set into a large labelled one that stays inside the real distribution, with numbers attached that say how far inside, so the synthetic data can be trusted or rejected on evidence rather than by eye.
+
+## License
+
+The code in this repository is released under the MIT License; see [LICENSE](LICENSE).
+
+The model weights it downloads are not. FLUX.1-dev and FLUX.1-Redux-dev are distributed under the FLUX.1 [dev] Non-Commercial License from Black Forest Labs, which covers the weights and anything generated with them, separately from this code. Check that license before using the output commercially, or point the backend at a model whose terms fit.
