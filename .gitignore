@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+runs/
+.pytest_cache/
+*.log
+.forge/
+data/
+# experiment outputs copied in from training machines
+diffusion_*/
+rescuenet_baseline_*/
+*.pth

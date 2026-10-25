@@ -1,0 +1,47 @@
+[project]
+name = "imageforge"
+version = "0.1.0"
+description = "Generate class-balanced synthetic training images from a real image set with local diffusion models."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.0",
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "pillow>=10.0",
+    "rich>=13.0",
+    "numpy",
+]
+
+[project.optional-dependencies]
+# Everything needed to caption, generate and filter. Install on the machine that has the GPU.
+gen = [
+    "torch>=2.4",
+    "torchvision",
+    "diffusers>=0.34",
+    "transformers>=4.51",
+    "accelerate>=1.0",
+    "safetensors",
+    "sentencepiece",
+    "protobuf",
+    "einops",
+    "qwen-vl-utils",
+    "huggingface_hub",
+    "gguf",
+]
+# 4-bit / 8-bit loading for small GPUs.
+quant = ["bitsandbytes>=0.45"]
+dev = ["pytest"]
+
+[project.scripts]
+imageforge = "imageforge.cli:app"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["imageforge*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

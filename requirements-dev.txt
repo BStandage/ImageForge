@@ -1,0 +1,5 @@
+# Package plus test tooling. No model stack.
+-e .
+pytest
+pyflakes
+numpy

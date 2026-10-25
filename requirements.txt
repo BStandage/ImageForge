@@ -1,0 +1,27 @@
+# Full install for a machine that captions, generates and filters.
+#
+# Install PyTorch first from the CUDA index that matches your driver, then this file:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+#   pip install -r requirements.txt
+#
+# For CPU-only or tests, requirements-dev.txt is enough.
+
+-e .
+numpy
+
+# model stack
+torch>=2.4
+torchvision
+diffusers>=0.34
+transformers>=4.51
+accelerate>=1.0
+safetensors
+sentencepiece
+protobuf
+einops
+qwen-vl-utils
+huggingface_hub
+gguf
+
+# 4-bit / 8-bit loading on small GPUs
+bitsandbytes>=0.45
